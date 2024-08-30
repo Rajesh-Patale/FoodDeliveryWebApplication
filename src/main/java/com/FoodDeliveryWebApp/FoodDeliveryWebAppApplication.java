@@ -13,6 +13,7 @@ public class FoodDeliveryWebAppApplication {
 		ConfigurableApplicationContext context = app.run(args);
 		String localhostLink = "http://localhost:8080";
 		System.out.println("Application is running at : "+localhostLink);
+		System.out.println("Hi");
 
 	}
 
