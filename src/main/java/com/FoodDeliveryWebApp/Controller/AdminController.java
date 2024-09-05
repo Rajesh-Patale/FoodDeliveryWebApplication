@@ -1,6 +1,7 @@
 package com.FoodDeliveryWebApp.Controller;
 
 import com.FoodDeliveryWebApp.Entity.Admin;
+import com.FoodDeliveryWebApp.Exception.AdminNotFoundException;
 import com.FoodDeliveryWebApp.Exception.UserNotFoundException;
 import com.FoodDeliveryWebApp.ServiceI.AdminService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -77,8 +78,37 @@ public class AdminController {
         }
     }
 
+    @PutMapping("/update/{adminId}")
+    public ResponseEntity<?> updateAdmin(
+            @PathVariable Long adminId,
+            @RequestPart("adminData") String adminData,
+            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture) {
+
+        try {
+            // Convert JSON string to Admin object
+            ObjectMapper objectMapper = new ObjectMapper();
+            Admin adminDetails = objectMapper.readValue(adminData, Admin.class);
+
+            // Update the admin
+            Admin updatedAdmin = adminService.updateAdmin(adminId, adminDetails, profilePicture);
+
+            // Return the updated admin
+            return ResponseEntity.ok(updatedAdmin);
+
+        } catch (AdminNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to parse admin data: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Invalid admin data format");
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred: " + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/delete/{adminId}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long adminId) {
+    public ResponseEntity<?> deleteAdmin(@PathVariable Long adminId) {
         try {
             if (adminId == null) {
                 throw new UserNotFoundException("Admin id cannot be null");

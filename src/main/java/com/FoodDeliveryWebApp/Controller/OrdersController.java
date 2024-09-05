@@ -1,18 +1,16 @@
 package com.FoodDeliveryWebApp.Controller;
 
 import com.FoodDeliveryWebApp.Entity.Orders;
+import com.FoodDeliveryWebApp.Exception.InvalidOrderCancellationException;
+import com.FoodDeliveryWebApp.Exception.InvalidOrderStatusException;
 import com.FoodDeliveryWebApp.Exception.OrdersNotFoundException;
-import com.FoodDeliveryWebApp.ServiceI.MenuService;
 import com.FoodDeliveryWebApp.ServiceI.OrdersService;
-import com.FoodDeliveryWebApp.ServiceI.RestaurantService;
-import com.FoodDeliveryWebApp.ServiceI.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
@@ -20,87 +18,130 @@ import java.util.List;
 @CrossOrigin("*")
 public class OrdersController {
 
-    @Autowired
-    private OrdersService ordersService;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private RestaurantService restaurantService;
-
-    @Autowired
-    private MenuService menuService;
-
     private final Logger logger = LoggerFactory.getLogger(OrdersController.class);
 
-    @GetMapping("/order/getAllOrders")
-    public ResponseEntity<List<Orders>> getAllOrders() {
+    @Autowired
+    private OrdersService orderService;
+
+    @PostMapping("/order/create")
+    public ResponseEntity<?> createOrder(
+            @RequestParam Long userId,
+            @RequestParam Long restaurantId,
+            @RequestParam List<Long> menuIds,
+            @RequestParam List<Integer> quantities) {
         try {
-            return ResponseEntity.ok().body(ordersService.getAllOrders());
+            // Validate input parameters
+            if (menuIds.size() != quantities.size()) {
+                logger.warn("Mismatch between menuIds and quantities size");
+                return ResponseEntity.badRequest().body("The size of menuIds and quantities must match.");
+            }
+            // Create the order
+            Orders order = orderService.createOrder(userId, restaurantId, menuIds, quantities);
+
+            logger.info("Order successfully created with ID {}", order.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(order);
+
         } catch (Exception e) {
-            logger.error("Error while getting orders", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            logger.error("An error occurred while creating the order: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while creating the order: " + e.getMessage());
         }
     }
+
+    @GetMapping("/byOrderId/{orderId}")
+    public ResponseEntity<?> getOrder(@PathVariable Long orderId) {
+        try {
+            Orders order = orderService.getOrder(orderId);
+
+            if (order == null) {
+                logger.warn("Order with ID {} not found", orderId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Order not found with ID: " + orderId);
+            }
+
+            logger.info("Order with ID {} retrieved successfully", orderId);
+            return ResponseEntity.ok(order);
+
+        } catch (Exception e) {
+            logger.error("An error occurred while retrieving the order with ID {}: {}", orderId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while retrieving the order: " + e.getMessage());
+        }
+    }
+
 
     @GetMapping("/order/byUserId/{userId}")
-    public ResponseEntity<List<Orders>> getOrdersByUserId(@PathVariable("userId") Long userId) {
+    public ResponseEntity<?> getOrdersByUserId(@PathVariable("userId") Long userId) {
         try {
-            return ResponseEntity.ok().body(ordersService.getOrdersByUserId(userId));
+            List<Orders> orders = orderService.getOrdersByUserId(userId);
+
+            if (orders == null || orders.isEmpty()) {
+                logger.warn("No orders found for user with ID {}", userId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("No orders found for user with ID: " + userId);
+            }
+
+            logger.info("Successfully retrieved orders for user with ID {}", userId);
+            return ResponseEntity.ok(orders);
+
         } catch (Exception e) {
-            logger.error("Error finding orders for user: {}", userId, e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            logger.error("An error occurred while finding orders for user with ID {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while retrieving orders: " + e.getMessage());
         }
     }
 
-    @GetMapping("/order/byOrderId/{orderId}")
-    public ResponseEntity<Orders> getOrderByOrderId(@PathVariable("orderId") Long orderId) {
+    @PutMapping("/order/updateStatus/{orderId}/{paymentSuccess}")
+    public ResponseEntity<?> updateOrderStatus(@PathVariable Long orderId, @PathVariable boolean paymentSuccess) {
         try {
-            return ResponseEntity.ok().body(ordersService.getOrderByOrderId(orderId));
-        } catch (Exception e) {
-            logger.error("Error finding order: {}", orderId, e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-    }
+            // Update the order status based on payment success or failure
+            Orders updatedOrder = orderService.updateOrderStatus(orderId, paymentSuccess);
 
-    @PutMapping("/order/update/{orderId}")
-    public ResponseEntity<Orders> updateOrder(@PathVariable("orderId") Long orderId, @RequestBody Orders orders) {
-        try {
-            return ResponseEntity.ok().body(ordersService.updateOrder(orderId, orders));
+            // Return the updated order
+            return ResponseEntity.ok(updatedOrder);
+
         } catch (OrdersNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            // Handle order not found scenario
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+
+        } catch (InvalidOrderStatusException e) {
+            // Handle invalid status update scenario
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+
         } catch (Exception e) {
-            logger.error("Error updating order: {}", orderId, e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            // Handle general errors
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while updating the order status: " + e.getMessage());
         }
     }
 
-    @PostMapping("/order/cancel/{orderId}/{userId}")
-    public ResponseEntity<Orders> cancelOrder(@PathVariable("orderId") Long orderId, @PathVariable("userId") Long userId) {
+
+    @PutMapping("/order/cancel/{orderId}")
+    public ResponseEntity<?> cancelOrder(@PathVariable Long orderId) {
         try {
-            Orders cancelledOrder = ordersService.cancelOrder(orderId, userId);
+            // Attempt to cancel the order
+            Orders cancelledOrder = orderService.cancelOrder(orderId);
+
+            // Return the updated order
             return ResponseEntity.ok(cancelledOrder);
+
         } catch (OrdersNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            // Handle order not found scenario
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+
+        } catch (InvalidOrderCancellationException e) {
+            // Handle invalid cancellation scenario
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+
+        } catch (InvalidOrderStatusException e) {
+            // Handle invalid status scenario
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+
         } catch (Exception e) {
-            logger.error("Error cancelling order: {}", orderId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            // Handle general errors
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while cancelling the order: " + e.getMessage());
         }
     }
 
-
-
-    @PostMapping("/order/save")
-    public ResponseEntity<Orders> saveOrder(@RequestBody Orders orders) {
-        try {
-            Orders savedOrder = ordersService.saveOrder(orders);
-            return ResponseEntity.status(HttpStatus.CREATED).body(savedOrder);
-        } catch (Exception e) {
-            logger.error("Error saving order: {}", orders, e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-    }
 }

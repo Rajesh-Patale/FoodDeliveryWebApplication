@@ -54,14 +54,6 @@ public class User {
     private List<Location> locations = new ArrayList<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonManagedReference(value = "user_orders")
-    private List<Orders> orders;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonManagedReference(value = "user_orderItem")
-    private List<OrderItem> orderItems;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference(value = "user-reviews")
     private List<Review> reviews;
 
