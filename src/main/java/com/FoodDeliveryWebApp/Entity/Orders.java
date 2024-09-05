@@ -1,10 +1,8 @@
 package com.FoodDeliveryWebApp.Entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,32 +16,26 @@ import java.util.List;
 public class Orders {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Long orderId;
-
-    @Enumerated(EnumType.STRING)
-    private OrderStatus orderStatus;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    @JsonBackReference(value = "user_orders")
     private User user;
 
     @ManyToOne
     @JoinColumn(name = "restaurant_id")
-    @JsonBackReference(value = "restaurant_orders")
     private Restaurant restaurant;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference(value = "order_orderItems")
+    private double totalAmount;
+    private double gst;
+    private double deliveryCharge;
+    private double platformCharge;
+    private double grandTotalPrice;
+    private LocalDateTime dateAndTime;
+    private String orderStatus;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @JsonManagedReference
     private List<OrderItem> orderItems = new ArrayList<>();
-
-    private LocalDateTime orderDateAndTime;
-
-    @PrePersist
-    public void prePersist() {
-        if (this.orderDateAndTime == null) {
-            this.orderDateAndTime = LocalDateTime.now();
-        }
-    }
 }
