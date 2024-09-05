@@ -4,11 +4,11 @@ import com.FoodDeliveryWebApp.Entity.Orders;
 import java.util.List;
 
 public interface OrdersService {
-    List<Orders> getAllOrders();
-    List<Orders> getOrdersByUserId(Long userId);
-    Orders getOrderByOrderId(Long orderId);
-    Orders updateOrder(Long orderId, Orders orders);
-    Orders cancelOrder(Long orderId, Long userId);
-    Orders saveOrder(Orders order);
 
+    Orders createOrder(Long userId, Long restaurantId, List<Long> menuIds, List<Integer> quantities);
+    Orders getOrder(Long orderId);
+    List<Orders> getOrdersByUserId(Long userId);
+    Orders getOrderById(Long orderId);
+    Orders updateOrderStatus(Long orderId, boolean paymentSuccess);
+    Orders cancelOrder(Long orderId);
 }

@@ -80,10 +80,16 @@ public class UserController {
     public ResponseEntity<?> loginUser(@PathVariable String username, @PathVariable String password) {
         try {
             User user = userService.loginUser(username, password);
+
+            logger.info("User {} logged in successfully", username);
+
             return ResponseEntity.ok(user);
+
         } catch (UserNotFoundException e) {
+            logger.warn("Login attempt failed for user {}: {}", username, e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
         } catch (Exception e) {
+            logger.error("An unexpected error occurred during login for user {}: {}", username, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred: " + e.getMessage());
         }
     }
@@ -95,6 +101,7 @@ public class UserController {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             User user = objectMapper.readValue(userData, User.class);
+            // If a profile picture is provided, validate and set it
             if (multipartFile != null && !multipartFile.isEmpty()) {
                 String contentType = multipartFile.getContentType();
                 if (contentType == null || isValidImageType(contentType)) {
@@ -103,6 +110,7 @@ public class UserController {
                 user.setProfilePicture(multipartFile.getBytes());
             } else {
                 User existingUser = userService.getUserById(userId);
+                // If no new profile picture is provided, keep the existing one
                 user.setProfilePicture(existingUser.getProfilePicture());
             }
             // Update user details
@@ -110,8 +118,10 @@ public class UserController {
             return ResponseEntity.ok(updatedUser);
 
         } catch (JsonProcessingException e) {
+            logger.error("Failed to parse user data: {}", e.getMessage());
             return ResponseEntity.badRequest().body(null);
         } catch (Exception e) {
+            logger.error("An error occurred while updating user with ID: {}", userId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
@@ -120,43 +130,68 @@ public class UserController {
     public ResponseEntity<?> getUserById(@PathVariable Long userId) {
         try {
             if (userId == null) {
-                throw new UserNotFoundException("User id cannot be null");
+                logger.warn("User ID cannot be null");
+                return ResponseEntity.badRequest().body("User ID cannot be null");
             }
+            // Retrieve the user
             User user = userService.getUserById(userId);
+            // Return the retrieved user
             return ResponseEntity.ok(user);
+
         } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found with id: " + userId);
+            logger.warn("User not found with ID: {}", userId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found with ID: " + userId);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred: " + e.getMessage());
+            logger.error("An unexpected error occurred while retrieving user with ID: {}", userId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred: " + e.getMessage());
         }
     }
 
     @DeleteMapping("/user/profilePicture/delete/{userId}")
     public ResponseEntity<String> deleteProfilePicture(@PathVariable Long userId) {
         try {
+            logger.info("Received request to delete profile picture for user ID: {}", userId);
+            // Call the service method to delete the profile picture
             String message = userService.deleteProfilePicture(userId);
+            // Return a success response
             return ResponseEntity.ok(message);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+
+        } catch (UserNotFoundException e) {
+            logger.warn("Profile picture deletion failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("An unexpected error occurred: " + e.getMessage());
+            logger.error("An unexpected error occurred: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred: " + e.getMessage());
         }
     }
 
+
     @DeleteMapping("/user/delete/{userId}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
+    public ResponseEntity<String> deleteUser(@PathVariable Long userId) {
         try {
+            logger.info("Received request to delete user with ID: {}", userId);
+            // Check if the user ID is null
             if (userId == null) {
-                throw new UserNotFoundException("User id cannot be null");
+                logger.warn("User ID cannot be null ");
+                throw new UserNotFoundException("User ID cannot be null");
             }
+            // Call the service method to delete the user
             userService.deleteUser(userId);
-            return ResponseEntity.status(HttpStatus.OK).body("successfully deleted");
+            // Return a success response
+            return ResponseEntity.ok("Successfully deleted user with ID: " + userId);
+
         } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found with id: " + userId);
+            logger.warn("Deletion failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred: " + e.getMessage());
+            logger.error("An unexpected error occurred: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred: " + e.getMessage());
         }
     }
+
 
     @PostMapping("/user/verifyMail/{userEmail}")
     public ResponseEntity<String> forgotPassword(@PathVariable String userEmail) {

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.util.List;
 
 @Entity
@@ -31,11 +30,6 @@ public class Menu  {
     @JsonBackReference
     private Restaurant restaurant;
 
-//    @ElementCollection
-//    @CollectionTable(name = "menu_images", joinColumns = @JoinColumn(name = "menu_id"))
-//    @Column(name = "image", columnDefinition = "LONGBLOB")
-//    private List<byte[]> images;
-
     @Lob
     @ElementCollection
     @Column(columnDefinition = "LONGBLOB")
@@ -46,10 +40,6 @@ public class Menu  {
         this.description = description;
         this.price = price;
     }
-
-    @OneToMany(mappedBy = "menu", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonManagedReference(value = "menu_orderItem")
-    private List<OrderItem> orderItems;
 
     @Enumerated(EnumType.STRING)
     private Category category;

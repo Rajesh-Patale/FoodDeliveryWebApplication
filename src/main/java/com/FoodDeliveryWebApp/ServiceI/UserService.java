@@ -3,7 +3,6 @@ package com.FoodDeliveryWebApp.ServiceI;
 import com.FoodDeliveryWebApp.Entity.User;
 import com.FoodDeliveryWebApp.Exception.UserNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 public interface UserService {
@@ -16,8 +15,6 @@ public interface UserService {
 
     User getUserById(Long userId);
 
-    User updateUser(User user);
-
     User updateUserDetails(Long userId, User user);
 
     @Transactional
@@ -26,8 +23,6 @@ public interface UserService {
     void deleteUser(Long userId);
 
     void createPasswordResetOtpForUser(User user, String otp);
-
-    String validatePasswordResetOtp(String otp);
 
     void changeUserPassword(User user, String newPassword);
 

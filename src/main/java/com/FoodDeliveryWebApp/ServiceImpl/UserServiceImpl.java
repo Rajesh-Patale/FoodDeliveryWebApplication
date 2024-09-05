@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-
 import static com.FoodDeliveryWebApp.CommanUtil.ValidationClass.*;
 
 @Service
@@ -36,7 +35,7 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private EmailService emailService;
 
-    private static final int OTP_EXPIRY_MINUTES = 10;
+    private static final int OTP_EXPIRY_MINUTES = 5;
 
     private final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
@@ -61,7 +60,7 @@ public class UserServiceImpl implements UserService {
         tempUser.setPassword(user.getPassword());
         tempUser.setConfirmPassword(user.getConfirmPassword());
         tempUser.setOtp(otp);
-        tempUser.setOtpExpiry(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES)); // OTP expires in 10 minutes
+        tempUser.setOtpExpiry(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES)); // OTP expires in 5 minutes
         tempUser.setProfilePicture(user.getProfilePicture());
         temporaryUserRepository.save(tempUser);
 
@@ -75,7 +74,7 @@ public class UserServiceImpl implements UserService {
     public String verifyOtpToRegister(String email, String otp) {
         logger.info("Attempting to verify OTP: {}", otp);
         Optional<TemporaryUser> tempUserOpt = temporaryUserRepository.findByOtp(otp);
-        if (!tempUserOpt.isPresent()) {
+        if (tempUserOpt.isEmpty()) {
             logger.error("OTP not found: {}", otp);
             throw new IllegalArgumentException("Temporary user not found");
         }
@@ -105,66 +104,140 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
     @Override
     public User loginUser(String username, String password) throws UserNotFoundException {
+        logger.info("Attempting to log in user with username: {}", username);
+
+        // Retrieve the user by username and password
         return userRepository.findByUsernameAndPassword(username, password)
-                .orElseThrow(() -> new UserNotFoundException("User " + username + " not found"));
-    }
-
-    @Override
-    public User getUserById(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User with ID " + userId + " not found"));
-    }
-
-    @Override
-    public User updateUser(User user) {
-        validateUserData(user);
-        return userRepository.save(user);
+                .orElseThrow(() -> {
+                    logger.warn("Login failed: User {} not found or password incorrect", username);
+                    return new UserNotFoundException("Invalid username or password");
+                });
     }
 
     @Override
     @Transactional
     public User updateUserDetails(Long userId, User user) {
-        logger.info("Updating user by id: {}, data: {}", userId, user);
-        User existingUser = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User with ID " + userId + " not found"));
+        try {
+            logger.info("Updating user by ID: {}", userId);
+            // Retrieve the existing user or throw an exception if not found
+            User existingUser = userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        logger.warn("User with ID {} not found", userId);
+                        return new UserNotFoundException("User with ID " + userId + " not found");
+                    });
 
-        if (user.getName() != null) existingUser.setName(user.getName());
-        if (user.getUsername() != null) existingUser.setUsername(user.getUsername());
-        if (user.getEmail() != null) existingUser.setEmail(user.getEmail());
-        if (user.getGender() != null) existingUser.setGender(user.getGender());
-        if (user.getMobileNo() != null) existingUser.setMobileNo(user.getMobileNo());
-        if (user.getAddress() != null) existingUser.setAddress(user.getAddress());
-        if (user.getProfilePicture()!= null) existingUser.setProfilePicture(user.getProfilePicture());
-        if (user.getPassword() != null) existingUser.setPassword(user.getPassword());
+            // Update fields only if they are provided in the input user object
+            if (user.getName() != null && !user.getName().isEmpty()) {
+                existingUser.setName(user.getName());
+            }
+            if (user.getUsername() != null && !user.getUsername().isEmpty()) {
+                existingUser.setUsername(user.getUsername());
+            }
+            if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                existingUser.setEmail(user.getEmail());
+            }
+            if (user.getGender() != null) {
+                existingUser.setGender(user.getGender());
+            }
+            if (user.getMobileNo() != null && !user.getMobileNo().isEmpty()) {
+                existingUser.setMobileNo(user.getMobileNo());
+            }
+            if (user.getAddress() != null && !user.getAddress().isEmpty()) {
+                existingUser.setAddress(user.getAddress());
+            }
+            if (user.getProfilePicture() != null) {
+                existingUser.setProfilePicture(user.getProfilePicture());
+            }
+            if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                existingUser.setPassword(user.getPassword());
+            }
+            if (user.getConfirmPassword()!= null &&!user.getConfirmPassword().isEmpty()) {
+                existingUser.setConfirmPassword(user.getConfirmPassword());
+            }
+            logger.info("User details for ID {} have been updated: {}", userId, existingUser);
 
-        return userRepository.save(existingUser);
-    }
+            // Save and return the updated user
+            return userRepository.save(existingUser);
 
-    @Override
-    @Transactional
-    public String deleteProfilePicture(Long userId) {
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            user.setProfilePicture(null); // Remove the profile picture
-            userRepository.save(user);
-            return "Profile picture deleted successfully.";
-        } else {
-            throw new IllegalArgumentException("User not found");
+        } catch (UserNotFoundException e) {
+            logger.error("Update failed: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred while updating user with ID {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Failed to update user details", e);
         }
     }
 
     @Override
-    public void deleteUser(Long userId) {
-        logger.info("Deleting user by id: {}", userId);
-        User existingUser = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User with ID " + userId + " not found"));
+    public User getUserById(Long userId) {
+        try {
+            logger.info("Retrieving user with ID: {}", userId);
+            // Retrieve the user by ID, or throw an exception if not found
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        logger.warn("User with ID {} not found ", userId);
+                        return new UserNotFoundException("User with ID " + userId + " not found");
+                    });
+        } catch (Exception e) {
+            logger.error("An error occurred while retrieving user with ID: {}", userId, e);
+            throw new RuntimeException("Failed to retrieve user", e);
+        }
+    }
 
-        userRepository.deleteById(userId);
-        logger.info("Successfully deleted user with id: {}", userId);
+
+    @Override
+    @Transactional
+    public String deleteProfilePicture(Long userId) {
+        try {
+            logger.info("Attempting to delete profile picture for user ID: {}", userId);
+            // Retrieve the user by ID
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        logger.warn("User with ID {} not found :", userId);
+                        return new UserNotFoundException("User with ID " + userId + " not found");
+                    });
+            // Remove the profile picture
+            user.setProfilePicture(null);
+            userRepository.save(user);
+
+            logger.info("Profile picture deleted successfully for user ID: {}", userId);
+
+            return "Profile picture deleted successfully.";
+
+        } catch (UserNotFoundException e) {
+            logger.error("Failed to delete profile picture: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred while deleting profile picture for user ID {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete profile picture", e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long userId) {
+        try {
+            logger.info("Attempting to delete user with ID: {}", userId);
+            // Retrieve the user by ID
+            User existingUser = userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        logger.warn("User with ID {} not found : ", userId);
+                        return new UserNotFoundException("User with ID " + userId + " not found");
+                    });
+            // Delete the user
+            userRepository.deleteById(userId);
+
+            logger.info("Successfully deleted user with ID: {}", userId);
+
+        } catch (UserNotFoundException e) {
+            logger.error("Deletion failed: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred while deleting user with ID {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete user", e);
+        }
     }
 
     @Override
@@ -176,7 +249,7 @@ public class UserServiceImpl implements UserService {
         otpEntity.setOtp(otp);
         otpEntity.setUser(user);
         otpEntity.setCreatedAt(LocalDateTime.now());
-        otpEntity.setExpiryDate(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES)); // OTP expires in 10 minutes
+        otpEntity.setExpiryDate(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES)); // OTP expires in 5 minutes
 
         otpRepository.save(otpEntity);
     }
@@ -184,16 +257,6 @@ public class UserServiceImpl implements UserService {
     private String generateOtp() {
         Random random = new Random();
         return String.valueOf(100000 + random.nextInt(900000)); // generate 6-digit OTP
-    }
-
-    @Override
-    public String validatePasswordResetOtp(String otp) {
-        Optional<ForgotPasswordOtp> passOtp = otpRepository.findByOtp(otp);
-        if (passOtp.isPresent() && passOtp.get().getExpiryDate().isAfter(LocalDateTime.now())) {
-            return null;
-        } else {
-            return "Invalid or expired OTP.";
-        }
     }
 
     @Override
@@ -243,8 +306,8 @@ public class UserServiceImpl implements UserService {
     }
     @Override
     public List<User> getAllUsers() {
+
         return userRepository.findAll();
     }
-
 
 }

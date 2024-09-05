@@ -1,9 +1,6 @@
 package com.FoodDeliveryWebApp.Entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,39 +9,20 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ToString(exclude = {"menu", "order", "user"})
 public class OrderItem {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "menu_id")
-    @JsonBackReference(value = "menu_orderItem")
-    private Menu menu;
-
     @ManyToOne
-    @JoinColumn(name = "order_id", nullable = true)
-    @JsonBackReference(value = "order_orderItems")
+    @JoinColumn(name = "order_id")
+    @JsonBackReference
     private Orders order;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    @JsonBackReference(value = "user_orderItem")
-    private User user;
+    @JoinColumn(name = "menu_id")
+    private Menu menu;
 
     private int quantity;
-    private Double price;
-    private Double totalPrice;
-    private Double gst;
-    private Double deliveryCharge;
-    private Double platformCharge;
-    private Double grandTotalPrice;
-
-    public Long getUserId(){
-        return user !=null?user.getId():null;
-    }
-    public Long getMenuId(){
-        return menu !=null?menu.getMenuId():null;
-    }
+    private double itemTotalPrice;
 }
